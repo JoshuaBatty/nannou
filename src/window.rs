@@ -799,6 +799,11 @@ impl Window {
         &self.swapchain.swapchain
     }
 
+    /// Access to the device queue used for executing window swapchain related commands.
+    pub fn queue(&self) -> &Arc<device::Queue> {
+        &self.queue
+    }
+
     // Custom methods.
 
     /// Attempts to determine whether or not the window is currently fullscreen.
