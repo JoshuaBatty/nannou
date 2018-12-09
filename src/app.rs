@@ -697,6 +697,11 @@ impl App {
         Ok(app)
     }
 
+    /// Returns the vulkan instance that is being used by Nannou
+    pub fn vulkan_instance(&self) -> &Arc<vulkano::instance::Instance> {
+        &self.vulkan_instance
+    }
+
     /// Returns an iterator yielding each of the physical devices on the system that are vulkan
     /// compatible.
     ///
