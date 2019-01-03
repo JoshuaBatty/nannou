@@ -128,6 +128,9 @@ path = "examples/vulkan/vk_image_sequence.rs"
 name = "vk_compute_shader"
 path = "examples/vulkan/vk_compute_shader.rs"
 [[example]]
+name = "vk_compute_and_graphics"
+path = "examples/vulkan/vk_compute_and_graphics.rs"
+[[example]]
 name = "vk_shader_include"
 path = "examples/vulkan/vk_shader_include/mod.rs"
 [[example]]
