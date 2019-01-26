@@ -137,6 +137,7 @@ name = "vk_debug"
 path = "examples/vulkan/vk_debug.rs"
 
 # --------------- Generative Design
+# --------------- Color
 [[example]]
 name = "p_1_0_01"
 path = "examples/generative_design/color/p_1_0_01.rs"
@@ -149,6 +150,19 @@ path = "examples/generative_design/color/p_1_2_3_01.rs"
 [[example]]
 name = "p_1_2_3_02"
 path = "examples/generative_design/color/p_1_2_3_02.rs"
+# --------------- Shape
+[[example]]
+name = "p_2_0_01"
+path = "examples/generative_design/shape/p_2_0_01.rs"
+[[example]]
+name = "p_2_0_02"
+path = "examples/generative_design/shape/p_2_0_02.rs"
+# --------------- Oscillation Figures
+[[example]]
+name = "m_2_1_01"
+path = "examples/generative_design/oscillation_figures/m_2_1_01.rs"
+
+
 # --------------- Nature of Code
 # --------------- Chapter 1 Vectors
 [[example]]
