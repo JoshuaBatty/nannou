@@ -69,6 +69,9 @@ path = "draw/draw_polygon.rs"
 name = "draw_polyline"
 path = "draw/draw_polyline.rs"
 [[example]]
+name = "draw_svg"
+path = "draw/draw_svg.rs"
+[[example]]
 name = "draw_text"
 path = "draw/draw_text.rs"
 [[example]]

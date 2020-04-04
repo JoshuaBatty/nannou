@@ -76,19 +76,19 @@ fn model(app: &App) -> Model {
         .join("generative_examples");
 
     let mut assets = Vec::new();
-    assets.push(svg_assets_path.join("056.svg"));
-    assets.push(svg_assets_path.join("076.svg"));
-    assets.push(svg_assets_path.join("082.svg"));
-    assets.push(svg_assets_path.join("096.svg"));
-    assets.push(svg_assets_path.join("117.svg"));
-    assets.push(svg_assets_path.join("148.svg"));
-    assets.push(svg_assets_path.join("152.svg"));
-    assets.push(svg_assets_path.join("157.svg"));
-    assets.push(svg_assets_path.join("164.svg"));
-    assets.push(svg_assets_path.join("166.svg"));
-    assets.push(svg_assets_path.join("186.svg"));
-    assets.push(svg_assets_path.join("198.svg"));
-    assets.push(svg_assets_path.join("224.svg"));
+    //assets.push(svg_assets_path.join("056.svg"));
+    // assets.push(svg_assets_path.join("076.svg"));
+    // assets.push(svg_assets_path.join("082.svg"));
+    // assets.push(svg_assets_path.join("096.svg"));
+     assets.push(svg_assets_path.join("117.svg"));
+    // assets.push(svg_assets_path.join("148.svg"));
+    // assets.push(svg_assets_path.join("152.svg"));
+    // assets.push(svg_assets_path.join("157.svg"));
+    // assets.push(svg_assets_path.join("164.svg"));
+    // assets.push(svg_assets_path.join("166.svg"));
+    // assets.push(svg_assets_path.join("186.svg"));
+    // assets.push(svg_assets_path.join("198.svg"));
+    // assets.push(svg_assets_path.join("224.svg"));
 
     let mut shapes = Vec::new();
 
@@ -97,8 +97,13 @@ fn model(app: &App) -> Model {
         let rtree = usvg::Tree::from_file(&asset, &opt).unwrap();
         let view_box = rtree.svg_node().view_box;
 
+        let mut i = 0;
         for node in rtree.root().descendants() {
             if let usvg::NodeKind::Path(ref p) = *node.borrow() {
+                println!("{}", i);
+                i += 1;
+                // san be either fill or stroke path
+                
                 if let Some(ref stroke) = p.stroke {
                     let color = match stroke.paint {
                         usvg::Paint::Color(c) => rgba(
@@ -115,8 +120,8 @@ fn model(app: &App) -> Model {
                     for e in path_events {
                         v.push(e);
                     }
-                    let w = view_box.rect.size().width as f32;
-                    let h = view_box.rect.size().height as f32;
+                    let w = view_box.rect.size().width() as f32;
+                    let h = view_box.rect.size().height() as f32;
                     let path = SvgPath::new(v, stroke.width.value() as f32, color, w, h);
                     shapes.push(path);
                 }
@@ -191,7 +196,9 @@ fn point(x: &f64, y: &f64) -> Point {
 }
 
 pub struct PathConvIter<'a> {
-    iter: std::slice::Iter<'a, usvg::PathSegment>,
+//    sub_path_iter: usvg::tree::pathdata::SubPathIter<'a>,
+    sub_path_iter: usvg::SubPathIter<'a>,
+    segment_iter: Option<std::slice::Iter<'a, usvg::PathSegment>>,
     prev: Point,
     first: Point,
     needs_end: bool,
@@ -205,74 +212,79 @@ impl<'l> Iterator for PathConvIter<'l> {
             return self.deferred.take();
         }
 
-        let next = self.iter.next();
-        match next {
-            Some(usvg::PathSegment::MoveTo { x, y }) => {
-                if self.needs_end {
-                    let last = self.prev;
-                    let first = self.first;
-                    self.needs_end = false;
-                    self.prev = point(x, y);
-                    self.deferred = Some(PathEvent::Begin { at: self.prev });
-                    self.first = self.prev;
-                    Some(PathEvent::End {
-                        last,
-                        first,
-                        close: false,
-                    })
-                } else {
-                    self.first = point(x, y);
-                    Some(PathEvent::Begin { at: self.first })
+        loop {
+            if self.segment_iter.is_none() {
+                self.segment_iter = Some(self.sub_path_iter.next()?.0.iter());            
+            }
+
+            let next = self.segment_iter.as_mut().and_then(|it| it.next());
+            match next {
+                Some(usvg::PathSegment::MoveTo { x, y }) => {
+                    if self.needs_end {
+                        let last = self.prev;
+                        let first = self.first;
+                        self.needs_end = false;
+                        self.prev = point(x, y);
+                        self.deferred = Some(PathEvent::Begin { at: self.prev });
+                        self.first = self.prev;
+                        return Some(PathEvent::End {
+                            last,
+                            first,
+                            close: false,
+                        })
+                    } else {
+                        self.first = point(x, y);
+                        return Some(PathEvent::Begin { at: self.first })
+                    }
                 }
-            }
-            Some(usvg::PathSegment::LineTo { x, y }) => {
-                self.needs_end = true;
-                let from = self.prev;
-                self.prev = point(x, y);
-                Some(PathEvent::Line {
-                    from,
-                    to: self.prev,
-                })
-            }
-            Some(usvg::PathSegment::CurveTo {
-                x1,
-                y1,
-                x2,
-                y2,
-                x,
-                y,
-            }) => {
-                self.needs_end = true;
-                let from = self.prev;
-                self.prev = point(x, y);
-                Some(PathEvent::Cubic {
-                    from,
-                    ctrl1: point(x1, y1),
-                    ctrl2: point(x2, y2),
-                    to: self.prev,
-                })
-            }
-            Some(usvg::PathSegment::ClosePath) => {
-                self.needs_end = false;
-                self.prev = self.first;
-                Some(PathEvent::End {
-                    last: self.prev,
-                    first: self.first,
-                    close: true,
-                })
-            }
-            None => {
-                if self.needs_end {
-                    self.needs_end = false;
-                    let last = self.prev;
-                    let first = self.first;
-                    Some(PathEvent::End {
-                        last,
-                        first,
-                        close: false,
+                Some(usvg::PathSegment::LineTo { x, y }) => {
+                    self.needs_end = true;
+                    let from = self.prev;
+                    self.prev = point(x, y);
+                    return Some(PathEvent::Line {
+                        from,
+                        to: self.prev,
                     })
-                } else {
-                    None
+                }
+                Some(usvg::PathSegment::CurveTo {
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    x,
+                    y,
+                }) => {
+                    self.needs_end = true;
+                    let from = self.prev;
+                    self.prev = point(x, y);
+                    return Some(PathEvent::Cubic {
+                        from,
+                        ctrl1: point(x1, y1),
+                        ctrl2: point(x2, y2),
+                        to: self.prev,
+                    })
+                }
+                Some(usvg::PathSegment::ClosePath) => {
+                    self.needs_end = false;
+                    self.prev = self.first;
+                    return Some(PathEvent::End {
+                        last: self.prev,
+                        first: self.first,
+                        close: true,
+                    })
+                }
+                None => {
+                    self.segment_iter = None;
+                    if self.needs_end {
+                        self.needs_end = false;
+                        let last = self.prev;
+                        let first = self.first;
+                        return Some(PathEvent::End {
+                            last,
+                            first,
+                            close: false,
+                        })
+                    }
                 }
             }
         }
@@ -281,7 +293,8 @@ impl<'l> Iterator for PathConvIter<'l> {
 
 pub fn convert_path<'a>(p: &'a usvg::Path) -> PathConvIter<'a> {
     PathConvIter {
-        iter: p.segments.iter(),
+        sub_path_iter: p.data.subpaths(),
+        segment_iter: None,
         first: Point::new(0.0, 0.0),
         prev: Point::new(0.0, 0.0),
         deferred: None,

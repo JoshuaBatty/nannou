@@ -25,6 +25,7 @@ pub use crate::math::{
     turns_to_rad,
 };
 pub use crate::rand::{random, random_f32, random_f64, random_range};
+pub use crate::svg::Svg;
 pub use crate::text::{self, text};
 pub use crate::time::DurationF64;
 pub use crate::ui;
