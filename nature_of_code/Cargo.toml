@@ -97,6 +97,9 @@ path = "chp_03_oscillation/3_01_angular_motion.rs"
 name = "3_02_forces_angular_motion"
 path = "chp_03_oscillation/3_02_forces_angular_motion.rs"
 [[example]]
+name = "3_03_pointing_velocity"
+path = "chp_03_oscillation/3_03_pointing_velocity.rs"
+[[example]]
 name = "3_04_polar_to_cartesian"
 path = "chp_03_oscillation/3_04_polar_to_cartesian.rs"
 [[example]]
@@ -263,6 +266,12 @@ path = "chp_08_fractals/8_4_cantor_set.rs"
 [[example]] 
 name = "8_4_tree" 
 path = "chp_08_fractals/8_4_tree.rs"
+[[example]] 
+name = "8_6_simple_lsystem" 
+path = "chp_08_fractals/8_6_simple_lsystem.rs"
+[[example]] 
+name = "8_9_lsystem" 
+path = "chp_08_fractals/8_9_lsystem.rs"
 
 # Chapter 9 Genetic Algorithms
 [[example]] 

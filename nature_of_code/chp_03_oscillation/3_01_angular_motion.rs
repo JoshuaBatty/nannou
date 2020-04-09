@@ -34,26 +34,28 @@ fn update(_app: &App, model: &mut Model, _update: Update) {
 
 fn view(app: &App, model: &Model, frame: Frame) {
     // Begin drawing
-    let draw = app.draw();
+    let draw = app.draw().rotate(model.angle);
     draw.background().color(WHITE);
 
     draw.line()
         .start(pt2(-60.0, 0.0))
         .end(pt2(60.0, 0.0))
-        .color(BLACK)
-        .rotate(model.angle);
+        .weight(2.0)
+        .gray(0.5);
 
     draw.ellipse()
         .x_y(60.0, 0.0)
         .w_h(16.0, 16.0)
-        .color(BLACK)
-        .rotate(model.angle);
+        .gray(0.5)
+        .stroke(BLACK)
+        .stroke_weight(2.0);
 
     draw.ellipse()
         .x_y(-60.0, 0.0)
         .w_h(16.0, 16.0)
-        .color(BLACK)
-        .rotate(model.angle);
+        .gray(0.5)
+        .stroke(BLACK)
+        .stroke_weight(2.0);
 
     // Write the result of our drawing to the window's frame.
     draw.to_frame(app, &frame).unwrap();
