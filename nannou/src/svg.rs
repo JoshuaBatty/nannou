@@ -35,7 +35,7 @@ impl Svg {
         let mut paths = Vec::new();
 
         for node in rtree.root().descendants() {
-            //dbg!(&node);
+            dbg!(&node);
             if let usvg::NodeKind::Path(ref p) = *node.borrow() {
                 // let t = p.transform;
                 // let mut matrix: Matrix4::<f64> = Matrix3::from_cols(

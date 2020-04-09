@@ -9,10 +9,10 @@ struct Model {
 }
 
 fn model(app: &App) -> Model {
-    app.new_window().size(650, 450).view(view).build().unwrap();
+    app.new_window().size(1200, 800).view(view).build().unwrap();
 
     let assets = app.assets_path().unwrap();
-    let svg_path = assets.join("svg").join("cube.svg");
+    let svg_path = assets.join("svg").join("demo2.svg");
 //    let svg_path = assets.join("svg").join("johnny_automatic_the_beer_snob.svg");
     let svg = Svg::load(svg_path).expect("failed to load svg");
 
