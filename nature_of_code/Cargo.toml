@@ -275,6 +275,9 @@ path = "chp_08_fractals/8_9_lsystem.rs"
 
 # Chapter 9 Genetic Algorithms
 [[example]] 
+name = "9_1_ga_shakespeare_simplified" 
+path = "chp_09_genetic_algorithms/9_1_ga_shakespeare_simplified.rs"
+[[example]] 
 name = "9_1_ga_shakespeare" 
 path = "chp_09_genetic_algorithms/9_1_ga_shakespeare.rs"
 
