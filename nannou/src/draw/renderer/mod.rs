@@ -1,7 +1,7 @@
 use crate::draw;
 use crate::draw::mesh::vertex::{Color, TexCoords};
 use crate::frame::Frame;
-use crate::geom::{self, Point2, Rect};
+use crate::geom::{self, Point2, Point3, Rect};
 use crate::glam::{Mat4, Vec2, Vec3};
 use crate::math::map_range;
 use crate::text;
@@ -41,6 +41,7 @@ pub struct RenderContext<'a> {
     pub path_points_textured_buffer: &'a [(Point2, TexCoords)],
     pub text_buffer: &'a str,
     pub theme: &'a draw::Theme,
+    pub camera: &'a draw::Projection,
     pub glyph_cache: &'a mut GlyphCache,
     pub fill_tessellator: &'a mut FillTessellator,
     pub stroke_tessellator: &'a mut StrokeTessellator,
@@ -94,6 +95,7 @@ pub struct Renderer {
     output_color_format: wgpu::TextureFormat,
     sample_count: u32,
     scale_factor: f32,
+    projection: draw::Projection,
     render_commands: Vec<RenderCommand>,
     mesh: draw::Mesh,
     vertex_mode_buffer: Vec<VertexMode>,
@@ -147,7 +149,7 @@ struct Uniforms {
     /// - x is transformed from (-half_logical_win_w, half_logical_win_w) to (-1, 1).
     /// - y is transformed from (-half_logical_win_h, half_logical_win_h) to (1, -1).
     /// - z is transformed from (-max_logical_win_side, max_logical_win_side) to (0, 1).
-    proj: Mat4,
+    view_proj: Mat4,
 }
 
 type SamplerId = u64;
@@ -415,7 +417,7 @@ impl Renderer {
         let default_texture_view = default_texture.view().build();
 
         // Initial uniform buffer values. These will be overridden on draw.
-        let uniforms = create_uniforms(output_attachment_size, output_scale_factor);
+        let uniforms = create_uniforms(output_attachment_size, &draw::Projection::Orthographic, output_scale_factor);
         let contents = uniforms_as_bytes(&uniforms);
         let usage = wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST;
         let uniform_buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
@@ -455,6 +457,8 @@ impl Renderer {
         let mesh = Default::default();
         let vertex_mode_buffer = vec![];
 
+        let projection = draw::Projection::Orthographic;
+
         Self {
             vs_mod,
             fs_mod,
@@ -475,6 +479,7 @@ impl Renderer {
             output_color_format,
             sample_count,
             scale_factor: output_scale_factor,
+            projection,
             render_commands,
             mesh,
             vertex_mode_buffer,
@@ -573,6 +578,7 @@ impl Renderer {
                             .path_points_textured_buffer,
                         text_buffer: &intermediary_state.text_buffer,
                         theme: &draw_state.theme,
+                        camera: &curr_ctxt.camera,
                         transform: &curr_ctxt.transform,
                         fill_tessellator: &mut fill_tessellator,
                         stroke_tessellator: &mut stroke_tessellator,
@@ -580,6 +586,7 @@ impl Renderer {
                         output_attachment_size: Vec2::new(px_to_pt(w_px), px_to_pt(h_px)),
                         output_attachment_scale_factor: scale_factor,
                     };
+
 
                     // Render the primitive.
                     let render = prim.render_primitive(ctxt, &mut self.mesh);
@@ -797,6 +804,7 @@ impl Renderer {
             ref mut render_commands,
             ref uniform_buffer,
             scale_factor: ref mut old_scale_factor,
+            projection: ref mut old_projection,
             ..
         } = *self;
 
@@ -874,11 +882,12 @@ impl Renderer {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        // If the scale factor or window size has changed, update the uniforms for vertex scaling.
-        if *old_scale_factor != scale_factor || output_attachment_size != depth_size {
-            *old_scale_factor = scale_factor;
+        // If the scale factor or window size has changed, or a perspective camera is being used, update the uniforms for vertex scaling.
+        if *old_scale_factor != scale_factor || output_attachment_size != depth_size || *old_projection != draw.context.camera {
+           *old_scale_factor = scale_factor;
+           *old_projection = draw.context.camera.clone();
             // Upload uniform data for vertex scaling.
-            let uniforms = create_uniforms(output_attachment_size, scale_factor);
+            let uniforms = create_uniforms(output_attachment_size, &draw.context.camera, scale_factor);
             let uniforms_size = std::mem::size_of::<Uniforms>() as wgpu::BufferAddress;
             let uniforms_bytes = uniforms_as_bytes(&uniforms);
             let usage = wgpu::BufferUsages::COPY_SRC;
@@ -1021,22 +1030,31 @@ fn create_depth_texture(
         .build(device)
 }
 
-fn create_uniforms([img_w, img_h]: [u32; 2], scale_factor: f32) -> Uniforms {
-    let right = img_w as f32 * 0.5 / scale_factor;
-    let left = -right;
-    let top = img_h as f32 * 0.5 / scale_factor;
-    let bottom = -top;
-    let far = std::cmp::max(img_w, img_h) as f32 / scale_factor;
-    let near = -far;
-    let proj = Mat4::orthographic_rh_gl(left, right, bottom, top, near, far);
-    // By default, ortho scales z values to the range -1.0 to 1.0. We want to scale and translate
-    // the z axis so that it is in the range of 0.0 to 1.0.
-    // TODO: Can possibly solve this more easily by using `Mat4::orthographic_rh` above instead.
-    let trans = Mat4::from_translation(Vec3::Z);
-    let scale = Mat4::from_scale([1.0, 1.0, 0.5].into());
-    let proj = scale * trans * proj;
-    let proj = proj.into();
-    Uniforms { proj }
+fn create_uniforms([img_w, img_h]: [u32; 2], camera: &draw::Projection, scale_factor: f32) -> Uniforms {
+    match camera {
+        draw::Projection::Perspective(cam) => {
+            let aspect_ratio = img_w as f32 / img_h as f32;
+            let view_proj: Mat4 = cam.calc_projection_matrix(aspect_ratio) * cam.calc_camera_matrix();
+            Uniforms { view_proj }
+        }
+        draw::Projection::Orthographic => {
+            let right = img_w as f32 * 0.5 / scale_factor;
+            let left = -right;
+            let top = img_h as f32 * 0.5 / scale_factor;
+            let bottom = -top;
+            let far = std::cmp::max(img_w, img_h) as f32 / scale_factor;
+            let near = -far;
+            let proj = Mat4::orthographic_rh_gl(left, right, bottom, top, near, far);
+            // By default, ortho scales z values to the range -1.0 to 1.0. We want to scale and translate
+            // the z axis so that it is in the range of 0.0 to 1.0.
+            // TODO: Can possibly solve this more easily by using `Mat4::orthographic_rh` above instead.
+            let trans = Mat4::from_translation(Vec3::Z);
+            let scale = Mat4::from_scale([1.0, 1.0, 0.5].into());
+            let proj = scale * trans * proj;
+            let proj = proj.into();
+            Uniforms { view_proj: proj }
+        }
+    }
 }
 
 fn create_uniform_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {

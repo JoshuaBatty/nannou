@@ -1,6 +1,7 @@
 //! A collection of commonly used items that we recommend importing for ease of use.
 
 pub use crate::app::{self, App, LoopMode};
+pub use crate::draw::camera::{Camera, CameraController};
 pub use crate::draw::Draw;
 pub use crate::event::WindowEvent::*;
 pub use crate::event::{
