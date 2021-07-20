@@ -7,6 +7,8 @@
 #version 450
 
 layout(set = 0, binding = 0) uniform Data {
+    mat4 world;
+    mat4 view;
     mat4 proj;
 } uniforms;
 
@@ -20,7 +22,11 @@ layout(location = 1) out vec2 v_tex_coords;
 layout(location = 2) flat out uint v_mode;
 
 void main() {
-    gl_Position = uniforms.proj * vec4(position, 1.0);
+    //gl_Position = uniforms.proj * vec4(position, 1.0);
+    
+    mat4 worldview = uniforms.view * uniforms.world;
+    gl_Position = uniforms.proj * worldview * vec4(position, 1.0);
+    
     v_color = color;
     v_tex_coords = tex_coords;
     v_mode = mode;

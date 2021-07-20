@@ -67,6 +67,9 @@ path = "draw/draw_arrow.rs"
 name = "draw_blend"
 path = "draw/draw_blend.rs"
 [[example]]
+name = "draw_camera"
+path = "draw/draw_camera/draw_camera.rs"
+[[example]]
 name = "draw_capture"
 path = "draw/draw_capture.rs"
 [[example]]

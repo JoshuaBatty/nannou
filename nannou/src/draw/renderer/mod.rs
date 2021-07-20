@@ -1,7 +1,7 @@
 use crate::draw;
 use crate::draw::mesh::vertex::{Color, TexCoords};
 use crate::frame::Frame;
-use crate::geom::{self, Point2, Rect};
+use crate::geom::{self, Point2, Point3, Rect};
 use crate::glam::{Mat4, Vec2, Vec3};
 use crate::math::map_range;
 use crate::text;
@@ -41,6 +41,7 @@ pub struct RenderContext<'a> {
     pub path_points_textured_buffer: &'a [(Point2, TexCoords)],
     pub text_buffer: &'a str,
     pub theme: &'a draw::Theme,
+    pub camera: &'a draw::Camera,
     pub glyph_cache: &'a mut GlyphCache,
     pub fill_tessellator: &'a mut FillTessellator,
     pub stroke_tessellator: &'a mut StrokeTessellator,
@@ -137,16 +138,24 @@ pub struct Scissor {
 #[derive(Debug)]
 pub struct DrawError;
 
+// #[repr(C)]
+// #[derive(Copy, Clone, Debug)]
+// struct Uniforms {
+//     /// Translates from "logical pixel coordinate space" (our "world space") to screen space.
+//     ///
+//     /// Specifically:
+//     ///
+//     /// - x is transformed from (-half_logical_win_w, half_logical_win_w) to (-1, 1).
+//     /// - y is transformed from (-half_logical_win_h, half_logical_win_h) to (1, -1).
+//     /// - z is transformed from (-max_logical_win_side, max_logical_win_side) to (0, 1).
+//     proj: Mat4,
+// }
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-struct Uniforms {
-    /// Translates from "logical pixel coordinate space" (our "world space") to screen space.
-    ///
-    /// Specifically:
-    ///
-    /// - x is transformed from (-half_logical_win_w, half_logical_win_w) to (-1, 1).
-    /// - y is transformed from (-half_logical_win_h, half_logical_win_h) to (1, -1).
-    /// - z is transformed from (-max_logical_win_side, max_logical_win_side) to (0, 1).
+pub struct Uniforms {
+    world: Mat4,
+    view: Mat4,
     proj: Mat4,
 }
 
@@ -412,8 +421,11 @@ impl Renderer {
             .build(device);
         let default_texture_view = default_texture.view().build();
 
+        //TODO default to orthographic camera 
+        let camera = draw::Camera::default();
+
         // Initial uniform buffer values. These will be overridden on draw.
-        let uniforms = create_uniforms(output_attachment_size, output_scale_factor);
+        let uniforms = create_uniforms(output_attachment_size, camera.view());//output_scale_factor);
         let contents = uniforms_as_bytes(&uniforms);
         let usage = wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST;
         let uniform_buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
@@ -571,6 +583,7 @@ impl Renderer {
                             .path_points_textured_buffer,
                         text_buffer: &intermediary_state.text_buffer,
                         theme: &draw_state.theme,
+                        camera: &curr_ctxt.camera,
                         transform: &curr_ctxt.transform,
                         fill_tessellator: &mut fill_tessellator,
                         stroke_tessellator: &mut stroke_tessellator,
@@ -873,10 +886,10 @@ impl Renderer {
         });
 
         // If the scale factor or window size has changed, update the uniforms for vertex scaling.
-        if *old_scale_factor != scale_factor || output_attachment_size != depth_size {
-            *old_scale_factor = scale_factor;
+        //if *old_scale_factor != scale_factor || output_attachment_size != depth_size {
+        //    *old_scale_factor = scale_factor;
             // Upload uniform data for vertex scaling.
-            let uniforms = create_uniforms(output_attachment_size, scale_factor);
+            let uniforms = create_uniforms(output_attachment_size, draw.context.camera.view());// scale_factor);
             let uniforms_size = std::mem::size_of::<Uniforms>() as wgpu::BufferAddress;
             let uniforms_bytes = uniforms_as_bytes(&uniforms);
             let usage = wgpu::BufferUsage::COPY_SRC;
@@ -887,7 +900,7 @@ impl Renderer {
             });
             // Copy new uniform buffer state.
             encoder.copy_buffer_to_buffer(&new_uniform_buffer, 0, uniform_buffer, 0, uniforms_size);
-        }
+        //}
 
         // Encode the render pass.
         let mut render_pass = render_pass_builder.begin(encoder);
@@ -1019,22 +1032,37 @@ fn create_depth_texture(
         .build(device)
 }
 
-fn create_uniforms([img_w, img_h]: [u32; 2], scale_factor: f32) -> Uniforms {
-    let right = img_w as f32 * 0.5 / scale_factor;
-    let left = -right;
-    let top = img_h as f32 * 0.5 / scale_factor;
-    let bottom = -top;
-    let far = std::cmp::max(img_w, img_h) as f32 / scale_factor;
-    let near = -far;
-    let proj = Mat4::orthographic_rh_gl(left, right, bottom, top, near, far);
-    // By default, ortho scales z values to the range -1.0 to 1.0. We want to scale and translate
-    // the z axis so that it is in the range of 0.0 to 1.0.
-    // TODO: Can possibly solve this more easily by using `Mat4::orthographic_rh` above instead.
-    let trans = Mat4::from_translation(Vec3::Z);
-    let scale = Mat4::from_scale([1.0, 1.0, 0.5].into());
-    let proj = scale * trans * proj;
-    let proj = proj.into();
-    Uniforms { proj }
+// fn create_uniforms([img_w, img_h]: [u32; 2], scale_factor: f32) -> Uniforms {
+//     let right = img_w as f32 * 0.5 / scale_factor;
+//     let left = -right;
+//     let top = img_h as f32 * 0.5 / scale_factor;
+//     let bottom = -top;
+//     let far = std::cmp::max(img_w, img_h) as f32 / scale_factor;
+//     let near = -far;
+//     let proj = Mat4::orthographic_rh_gl(left, right, bottom, top, near, far);
+//     // By default, ortho scales z values to the range -1.0 to 1.0. We want to scale and translate
+//     // the z axis so that it is in the range of 0.0 to 1.0.
+//     // TODO: Can possibly solve this more easily by using `Mat4::orthographic_rh` above instead.
+//     let trans = Mat4::from_translation(Vec3::Z);
+//     let scale = Mat4::from_scale([1.0, 1.0, 0.5].into());
+//     let proj = scale * trans * proj;
+//     let proj = proj.into();
+//     Uniforms { proj }
+// }
+
+fn create_uniforms([w, h]: [u32; 2], view: Mat4) -> Uniforms {
+    let rotation = Mat4::from_rotation_y(0f32);
+    let aspect_ratio = w as f32 / h as f32;
+    let fov_y = std::f32::consts::FRAC_PI_2;
+    let near = 0.01;
+    let far = 100.0;
+    let proj = Mat4::perspective_rh_gl(fov_y, aspect_ratio, near, far);
+    let scale = Mat4::from_scale(Vec3::splat(0.01));
+    Uniforms {
+        world: rotation,
+        view: (view * scale).into(),
+        proj: proj.into(),
+    }
 }
 
 fn create_uniform_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
