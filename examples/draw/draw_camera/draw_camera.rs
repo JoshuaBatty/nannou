@@ -153,6 +153,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     draw.background().rgb(0.1, 0.1, 0.1);
     // println!("camera = {:#?}", &model.camera);
 
+
     let centre = pt3(0.0, 0.0, 0.0);
     let size = vec3(100.0, 100.0, 100.0);
     let cuboid = geom::Cuboid::from_xyz_whd(centre, size);

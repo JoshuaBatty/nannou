@@ -592,6 +592,7 @@ impl Renderer {
                         output_attachment_scale_factor: scale_factor,
                     };
 
+
                     // Render the primitive.
                     let render = prim.render_primitive(ctxt, &mut self.mesh);
 
