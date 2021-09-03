@@ -16,9 +16,9 @@ edition = "2018"
 [dev-dependencies]
 audrey = "0.3"
 futures = "0.3"
-hotglsl = { git = "https://github.com/nannou-org/hotglsl", branch = "master" }
+hotglsl = { git = "https://github.com/nannou-org/hotglsl", branch = "develop" }
 hrtf = "0.2"
-nannou = { version ="0.17.0", path = "../nannou" }
+nannou = { version ="0.17.1", path = "../nannou" }
 nannou_audio = { version ="0.17.0", path = "../nannou_audio" }
 nannou_conrod = { version ="0.17.0", path = "../nannou_conrod" }
 nannou_isf = { version = "0.1.0", path = "../nannou_isf" }
@@ -27,6 +27,7 @@ nannou_osc = { version ="0.17.0", path = "../nannou_osc" }
 nannou_timeline = { version ="0.17.0", features = ["serde1"], path =  "../nannou_timeline" }
 pitch_calc = { version = "0.12", features = ["serde"] }
 time_calc = { version= "0.13", features = ["serde"] }
+nannou_egui = "0.4.0"
 walkdir = "2"
 hound = "3.4.0"
 ringbuf = "0.2.2"

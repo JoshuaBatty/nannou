@@ -1,218 +1,188 @@
 use nannou::prelude::*;
-use nannou::draw::Camera;
-use nannou::winit;
+use nannou::draw::CameraSettings;
+
+use nannou_conrod as ui;
+use nannou_conrod::prelude::*;
+
+mod first_person;
+use first_person::{FirstPerson, FirstPersonSettings};
+
+mod orbit_zoom;
+use orbit_zoom::{OrbitZoomCamera, OrbitZoomCameraSettings};
 
 fn main() {
     nannou::app(model)
-        .event(event)
         .update(update)
         .view(view)
         .run();
 }
 
+widget_ids! {
+    struct Ids {
+        fov,
+        near_clip,
+        far_clip,
+    }
+}
+
 struct Model {
-    texture: wgpu::Texture,
     grid: Grid,
-    camera_is_active: bool,
-    camera: Camera,
-}
-
-struct Grid {
-    lines: Vec<Cuboid>,
-}
-
-impl Grid {
-    pub fn new() -> Self {
-        let num_lines = 1000;
-        let world_size = 100000.0;
-        let grid_thickness = 3.0;
-        let mut lines = Vec::new();
-        for i in 0..num_lines {
-            let pos = map_range(i, 0, num_lines, -world_size, world_size);
-            // lines X
-            let centre = pt3(pos, 0.0, 0.0);
-            let size = vec3(grid_thickness, grid_thickness, world_size);
-            lines.push(geom::Cuboid::from_xyz_whd(centre, size));
-
-            // lines Z
-            let centre = pt3(0.0, 0.0, pos);
-            let size = vec3(world_size, grid_thickness, grid_thickness);
-            lines.push(geom::Cuboid::from_xyz_whd(centre, size));
-        }
-
-        Grid {
-            lines
-        }
-    }
-
-    pub fn draw(&self, draw: &Draw) {
-        for c in &self.lines {
-            let cpoints = c.triangles_iter().flat_map(geom::Tri::vertices);
-            draw.mesh()
-                .points(cpoints)
-                .color(rgba(0.0, 1.0, 0.0, 0.1));
-        }
-    }
+    first_person: FirstPerson,
+    orbit_zoom: OrbitZoomCamera,
+    camera_settings: CameraSettings,
+    ui: Ui,
+    ids: Ids,
 }
 
 fn model(app: &App) -> Model {
-    app.new_window()
-        .size(720, 720)
+    let window_id = app.new_window()
+        .size(1280, 720)
+        .event(window_event)
+        .raw_event(raw_window_event)
         .view(view)
-        .key_pressed(key_pressed)
-        .key_released(key_released)
-        .mouse_moved(mouse_moved)
-        .mouse_pressed(mouse_pressed)
-        .mouse_released(mouse_released)
         .build()
         .unwrap();
+    
+    // Create the UI for our window.
+    let mut ui = ui::builder(app).window(window_id).build().unwrap();
 
-    // Load the image from disk and upload it to a GPU texture.
-    let assets = app.assets_path().unwrap();
-    let img_path = assets.join("images").join("nature").join("nature_1.jpg");
-    let texture = wgpu::Texture::from_path(app, img_path).unwrap();
+    // Generate some ids for our widgets.
+    let ids = Ids::new(ui.widget_id_generator());
 
-    let grid = Grid::new();
-    let camera = Camera::new();
-    let camera_is_active = true;
+    let orbit_zoom = OrbitZoomCamera::new(
+        Vec3::new(0.0, 0.0, 0.0), 
+        OrbitZoomCameraSettings::default()
+    );    
+    
+    let mut first_person = FirstPerson::new(
+        Vec3::new(0.0, 3.0, 6.0), 
+        FirstPersonSettings::default()
+    );
+    first_person.pitch = 0.6;
 
-    Model { texture, grid, camera_is_active, camera }
-}
-
-fn update(app: &App, model: &mut Model, update: Update) {
-    const CAM_SPEED_HZ: f64 = 2.5;
-    use nannou::draw::camera::pitch_yaw_to_direction;
-    if model.camera_is_active {
-        let velocity = (update.since_last.secs() * CAM_SPEED_HZ) as f32;
-        // Go forwards on W.
-        if app.keys.down.contains(&Key::W) {
-            model.camera.eye += model.camera.direction() * velocity;
-        }
-        // Go backwards on S.
-        if app.keys.down.contains(&Key::S) {
-            model.camera.eye -= model.camera.direction() * velocity;
-        }
-        // Strafe left on A.
-        if app.keys.down.contains(&Key::A) {
-            let pitch = 0.0;
-            let yaw = model.camera.yaw + std::f32::consts::PI * 0.5;
-            let direction = pitch_yaw_to_direction(pitch, yaw);
-            model.camera.eye += direction * velocity;
-        }
-        // Strafe right on D.
-        if app.keys.down.contains(&Key::D) {
-            let pitch = 0.0;
-            let yaw = model.camera.yaw - std::f32::consts::PI * 0.5;
-            let direction = pitch_yaw_to_direction(pitch, yaw);
-            model.camera.eye += direction * velocity;
-        }
-        // Float down on Q.
-        if app.keys.down.contains(&Key::Q) {
-            let pitch = model.camera.pitch - std::f32::consts::PI * 0.5;
-            let direction = pitch_yaw_to_direction(pitch, model.camera.yaw);
-            model.camera.eye += direction * velocity;
-        }
-        // Float up on E.
-        if app.keys.down.contains(&Key::E) {
-            let pitch = model.camera.pitch + std::f32::consts::PI * 0.5;
-            let direction = pitch_yaw_to_direction(pitch, model.camera.yaw);
-            model.camera.eye += direction * velocity;
-        }
+    Model { 
+        grid: Grid::new(),  
+        first_person,
+        orbit_zoom,
+        camera_settings: Default::default(), 
+        ui,
+        ids, 
     }
 }
 
-// Use raw device motion event for camera pitch and yaw.
-// TODO: Check device ID for mouse here - not sure if possible with winit currently.
-fn event(app: &App, model: &mut Model, event: Event) {
-    if model.camera_is_active {
-        if let Event::DeviceEvent(_device_id, event) = event {
-            if let winit::event::DeviceEvent::Motion { axis, value } = event {
-                let sensitivity = 0.004;
-                match axis {
-                    // Yaw left and right on mouse x axis movement.
-                    0 => model.camera.yaw -= (value * sensitivity) as f32,
-                    // Pitch up and down on mouse y axis movement.
-                    _ => {
-                        let max_pitch = std::f32::consts::PI * 0.5 - 0.0001;
-                        let min_pitch = -max_pitch;
-                        model.camera.pitch = (model.camera.pitch + (-value * sensitivity) as f32)
-                            .min(max_pitch)
-                            .max(min_pitch)
-                    }
-                }
-            }
-        }
-    }
+fn window_event(_app: &App, model: &mut Model, event: WindowEvent) {
+    model.first_person.window_event(event.clone());
+    model.orbit_zoom.window_event(event);
 }
 
+fn raw_window_event(app: &App, model: &mut Model, event: &ui::RawWindowEvent) {
+    model.ui.handle_raw_event(app, event);
+}
+
+fn update(_app: &App, model: &mut Model, _update: Update) {
+    // Calling `set_widgets` allows us to instantiate some widgets.
+    let ui = &mut model.ui.set_widgets();
+
+    fn slider(val: f32, min: f32, max: f32) -> widget::Slider<'static, f32> {
+        widget::Slider::new(val, min, max)
+            .w_h(200.0, 30.0)
+            .label_font_size(15)
+            .rgb(0.3, 0.3, 0.3)
+            .label_rgb(1.0, 1.0, 1.0)
+            .border(0.0)
+    }
+
+    for value in slider(model.camera_settings.fov, 0.1, std::f32::consts::FRAC_PI_2)
+        .top_left_with_margin(20.0)
+        .label("FOV")
+        .set(model.ids.fov, ui)
+    {
+        model.camera_settings.fov = value;
+    }
+
+    for value in slider(model.camera_settings.near_clip, 0.0, 40.0)
+        .down(10.0)
+        .label("Near Clip")
+        .set(model.ids.near_clip, ui)
+    {
+        model.camera_settings.near_clip = value;
+    }
+
+    for value in slider(model.camera_settings.far_clip, 40.0, 200.0)
+        .down(10.0)
+        .label("Far Clip")
+        .set(model.ids.far_clip, ui)
+    {
+        model.camera_settings.far_clip = value;
+    }
+
+    model.first_person.update(model.camera_settings);
+    model.orbit_zoom.update(model.camera_settings);
+}
 
 // Draw the state of your `Model` into the given `Frame` here.
 fn view(app: &App, model: &Model, frame: Frame) {
-    let win_rect = app.window_rect();
-    let draw = app.draw().camera(model.camera);
-    draw.background().rgb(0.1, 0.1, 0.1);
-    // println!("camera = {:#?}", &model.camera);
+//    let draw = app.draw().camera(model.first_person.camera());
+    let draw = app.draw().camera(model.orbit_zoom.camera());
+    draw.background().rgb(0.07, 0.07, 0.07);
 
+    let grid_size = 6; 
+    let cube_size = 150.0;
 
-    let centre = pt3(0.0, 0.0, 0.0);
-    let size = vec3(100.0, 100.0, 100.0);
-    let cuboid = geom::Cuboid::from_xyz_whd(centre, size);
-    let wireframe = create_wireframe(&cuboid);
+    for x in 0..grid_size {
+        for y in 0..grid_size {
+            for z in 0..grid_size {
+                let position = pt3(
+                    (cube_size / 2.0) + (x as f32 * cube_size) - (cube_size * grid_size as f32 / 2.0), 
+                    (cube_size / 2.0) + (y as f32 * cube_size) - (cube_size * grid_size as f32 / 2.0), 
+                    (cube_size / 2.0) + (z as f32 * cube_size) - (cube_size * grid_size as f32 / 2.0)
+                );
 
-    let rot = vec3(
-        // individual rotation
-        app.time * 0.0,//1.11,
-        app.time * 0.0,//1.22,
-        app.time * 0.0,//1.33,
-    );
-    // draw the center
-    let cpoints = cuboid.triangles_iter().flat_map(geom::Tri::vertices);
-    draw.radians(rot)
-        .mesh()
-        .points(cpoints)
-        .color(rgba(1.0, 0.0, 0.0, 0.1));
+                let dist = 1.0 - map_range(
+                    position.distance(pt3(0.0,0.0,0.0)), 
+                    cube_size / 2.0, 
+                    (cube_size / 2.0) + (cube_size * grid_size as f32 / 2.0), 
+                    0.0, 
+                    1.0
+                );
 
-    // draw the wireframe
-    for w in &wireframe {
-        let wpoints = w.triangles_iter().flat_map(geom::Tri::vertices);
-        draw.radians(rot)
-            .mesh()
-            .points(wpoints)
-            .color(BLACK);
-    }    
+                let hsva = hsva(dist, 1.0, 0.5, 0.2);
+                draw_cube(&draw, position, cube_size, dist, hsva);
+            }
+        }
+    }
+    
 
     // draw the grid
     model.grid.draw(&draw);
 
-    // // Generate the triangulated points for a cuboid to use for out mesh.
-    // let centre = pt3(0.0, 0.0, 0.0);
-    // let size = vec3(1.0, 1.0, 1.0);
-    // let cuboid = geom::Cuboid::from_xyz_whd(centre, size);
-    // let points = cuboid
-    //     .triangles_iter()
-    //     .flat_map(geom::Tri::vertices)
-    //     .map(|point| {
-    //         // Tex coords should be in range (0.0, 0.0) to (1.0, 1.0);
-    //         // This will have the logo show on the front and back faces.
-    //         let [x, y, _] = point;
-    //         let tex_coords = [x + 0.5, 1.0 - (y + 0.5)];
-    //         (point, tex_coords)
-    //     });
-
-    // // Scale the points up to half the window size.
-    // let cube_side = win_rect.w().min(win_rect.h()) * 0.5;
-    // draw.scale(cube_side)
-    //     .mesh()
-    //     .points_textured(&model.texture, points)
-    //     .z_radians(app.time * 0.33)
-    //     .x_radians(app.time * 0.166 + -app.mouse.y / 100.0)
-    //     .y_radians(app.time * 0.25 + app.mouse.x / 100.0);
-
     // Draw to the frame!
     draw.to_frame(app, &frame).unwrap();
+
+    // Draw the state of the `Ui` to the frame.
+    model.ui.draw_to_frame(app, &frame).unwrap();
 }
 
-fn create_wireframe(cuboid: &Cuboid) -> Vec<Cuboid> {
+fn draw_cube(draw: &Draw, pos: Point3, size: f32, dist: f32, hsva: Hsva) {
+    let cuboid = geom::Cuboid::from_xyz_whd(pos, vec3(size, size, size) * dist);
+    let wireframe = create_wireframe(&cuboid, dist * 3.0);
+    
+    // draw the center
+    let cpoints = cuboid.triangles_iter().flat_map(geom::Tri::vertices);
+    draw.mesh()
+        .points(cpoints)
+        .color(hsva);
+
+    // draw the wireframe
+    for w in &wireframe {
+        let wpoints = w.triangles_iter().flat_map(geom::Tri::vertices);
+        draw.mesh()
+            .points(wpoints)
+            .color(BLACK);
+    }    
+}
+
+fn create_wireframe(cuboid: &Cuboid, wire_width: f32) -> Vec<Cuboid> {
     let x = cuboid.x();
     let y = cuboid.y();
     let z = cuboid.z();
@@ -222,7 +192,7 @@ fn create_wireframe(cuboid: &Cuboid) -> Vec<Cuboid> {
     let yy = hh * 0.5;
     let dd = cuboid.d();
     let zz = dd * 0.5;
-    let w = 5.0; // wire width
+    let w = wire_width; 
     vec![
         //top
         Cuboid::from_x_y_z_w_h_d(x + -xx, y + yy, z + 0.0, w, w, dd),
@@ -243,27 +213,45 @@ fn create_wireframe(cuboid: &Cuboid) -> Vec<Cuboid> {
 }
 
 
-// Toggle cursor grabbing and hiding on Space key.
-fn key_pressed(app: &App, model: &mut Model, key: Key) {
-    if let Key::Space = key {
-        let window = app.main_window();
-        if !model.camera_is_active {
-            if window.set_cursor_grab(true).is_ok() {
-                model.camera_is_active = true;
-            }
-        } else {
-            if window.set_cursor_grab(false).is_ok() {
-                model.camera_is_active = false;
-            }
-        }
-        window.set_cursor_visible(!model.camera_is_active);
-    }
+struct Grid {
+    lines: Vec<Cuboid>,
 }
 
-fn key_released(_app: &App, _model: &mut Model, _key: Key) {}
+impl Grid {
+    pub fn new() -> Self {
+        let num_lines = 2000;
+        let world_size = 100000.0;
+        let grid_thickness = 2.0;
+        let mut lines = Vec::new();
+        for i in 0..num_lines {
+            let pos = map_range(i, 0, num_lines, -world_size, world_size);
+            // lines X
+            let centre = pt3(pos, 0.0, 0.0);
+            let size = vec3(grid_thickness, grid_thickness, world_size);
+            lines.push(geom::Cuboid::from_xyz_whd(centre, size));
 
-fn mouse_moved(_app: &App, _model: &mut Model, _pos: Point2) {}
+            // lines Z
+            let centre = pt3(0.0, 0.0, pos);
+            let size = vec3(world_size, grid_thickness, grid_thickness);
+            lines.push(geom::Cuboid::from_xyz_whd(centre, size));
+        }
 
-fn mouse_pressed(_app: &App, _model: &mut Model, _button: MouseButton) {}
+        Grid {
+            lines
+        }
+    }
 
-fn mouse_released(_app: &App, _model: &mut Model, _button: MouseButton) {}
+    pub fn draw(&self, draw: &Draw) {
+        for (i,c) in self.lines.iter().enumerate() {
+            let cpoints = c.triangles_iter().flat_map(geom::Tri::vertices);
+            let a = if i % 5 == 0 {
+                0.1
+            } else {
+                0.01
+            };
+            draw.mesh()
+                .points(cpoints)
+                .color(rgba(1.0, 1.0, 1.0, a));
+        }
+    }
+}

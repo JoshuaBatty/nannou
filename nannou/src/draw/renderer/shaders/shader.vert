@@ -24,9 +24,12 @@ layout(location = 2) flat out uint v_mode;
 void main() {
     //gl_Position = uniforms.proj * vec4(position, 1.0);
     
-    mat4 worldview = uniforms.view * uniforms.world;
-    gl_Position = uniforms.proj * worldview * vec4(position, 1.0);
+    //mat4 worldview = uniforms.view * uniforms.world;
+    //gl_Position = uniforms.proj * worldview * vec4(position, 1.0);
     
+    mat4 model_view_projection = (uniforms.proj * uniforms.view) * uniforms.world;
+    gl_Position = model_view_projection * vec4(position, 1.0);
+
     v_color = color;
     v_tex_coords = tex_coords;
     v_mode = mode;

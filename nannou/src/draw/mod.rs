@@ -13,7 +13,7 @@ use std::mem;
 use std::rc::Rc;
 
 pub use self::background::Background;
-pub use self::camera::Camera;
+pub use self::camera::{Camera, CameraSettings};
 pub use self::drawing::{Drawing, DrawingContext};
 use self::mesh::vertex::{Color, TexCoords};
 pub use self::mesh::Mesh;

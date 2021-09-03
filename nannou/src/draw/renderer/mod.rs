@@ -425,7 +425,7 @@ impl Renderer {
         let camera = draw::Camera::default();
 
         // Initial uniform buffer values. These will be overridden on draw.
-        let uniforms = create_uniforms(output_attachment_size, camera.view());//output_scale_factor);
+        let uniforms = create_uniforms(output_attachment_size, &camera);//output_scale_factor);
         let contents = uniforms_as_bytes(&uniforms);
         let usage = wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST;
         let uniform_buffer = device.create_buffer_init(&wgpu::BufferInitDescriptor {
@@ -890,7 +890,7 @@ impl Renderer {
         //if *old_scale_factor != scale_factor || output_attachment_size != depth_size {
         //    *old_scale_factor = scale_factor;
             // Upload uniform data for vertex scaling.
-            let uniforms = create_uniforms(output_attachment_size, draw.context.camera.view());// scale_factor);
+            let uniforms = create_uniforms(output_attachment_size, &draw.context.camera);// scale_factor);
             let uniforms_size = std::mem::size_of::<Uniforms>() as wgpu::BufferAddress;
             let uniforms_bytes = uniforms_as_bytes(&uniforms);
             let usage = wgpu::BufferUsage::COPY_SRC;
@@ -1051,18 +1051,29 @@ fn create_depth_texture(
 //     Uniforms { proj }
 // }
 
-fn create_uniforms([w, h]: [u32; 2], view: Mat4) -> Uniforms {
-    let rotation = Mat4::from_rotation_y(0f32);
+// fn create_uniforms([w, h]: [u32; 2], view: Mat4) -> Uniforms {
+//     let rotation = Mat4::from_rotation_y(0f32);
+//     let aspect_ratio = w as f32 / h as f32;
+//     let fov_y = std::f32::consts::FRAC_PI_2;
+//     let near = 0.01;
+//     let far = 100.0;
+//     let proj = Mat4::perspective_rh_gl(fov_y, aspect_ratio, near, far);
+//     let scale = Mat4::from_scale(Vec3::splat(0.01));
+//     Uniforms {
+//         world: rotation,
+//         view: (view * scale).into(),
+//         proj: proj.into(),
+//     }
+// }
+
+fn create_uniforms([w, h]: [u32; 2], cam: &draw::Camera) -> Uniforms {
+    let model = Mat4::IDENTITY;
     let aspect_ratio = w as f32 / h as f32;
-    let fov_y = std::f32::consts::FRAC_PI_2;
-    let near = 0.01;
-    let far = 100.0;
-    let proj = Mat4::perspective_rh_gl(fov_y, aspect_ratio, near, far);
     let scale = Mat4::from_scale(Vec3::splat(0.01));
     Uniforms {
-        world: rotation,
-        view: (view * scale).into(),
-        proj: proj.into(),
+        world: model,
+        view: (cam.orthogonal() * scale).into(),
+        proj: cam.projection(aspect_ratio),
     }
 }
 
