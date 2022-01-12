@@ -27,7 +27,7 @@ nannou_osc = { version ="0.18.0", path = "../nannou_osc" }
 nannou_timeline = { version ="0.18.0", features = ["serde1"], path =  "../nannou_timeline" }
 pitch_calc = { version = "0.12", features = ["serde"] }
 time_calc = { version= "0.13", features = ["serde"] }
-nannou_egui = "0.4.0"
+nannou_egui = "0.5.0"
 walkdir = "2"
 hound = "3.4.0"
 ringbuf = "0.2.2"
