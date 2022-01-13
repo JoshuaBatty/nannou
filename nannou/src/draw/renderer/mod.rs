@@ -882,6 +882,7 @@ impl Renderer {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        //println!("draw.context.camera = {:?}", draw.context.camera);
         // If the scale factor or window size has changed, or a perspective camera is being used, update the uniforms for vertex scaling.
         if *old_scale_factor != scale_factor || output_attachment_size != depth_size || *old_projection != draw.context.camera {
            *old_scale_factor = scale_factor;

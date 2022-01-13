@@ -81,6 +81,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
     //draw.to_frame(app, &frame).unwrap();
 
     // Begin drawing using a 2d Orthographic Projection
+    //let draw = app.draw().orthographic(); 
     let draw = draw.orthographic();
     let win = app.window_rect();
     let pos = model.camera.position;
