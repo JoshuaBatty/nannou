@@ -78,11 +78,11 @@ fn view(app: &App, model: &Model, frame: Frame) {
     model.grid.draw(&draw);
 
     // Draw the 3d Perspective visuals to the frame!
-    //draw.to_frame(app, &frame).unwrap();
+    draw.to_frame(app, &frame).unwrap();
 
     // Begin drawing using a 2d Orthographic Projection
-    //let draw = app.draw().orthographic(); 
-    let draw = draw.orthographic();
+    let draw = app.draw().orthographic(); 
+    //let draw = draw.orthographic();
     let win = app.window_rect();
     let pos = model.camera.position;
     let text = format!("Position: {:.1} {:.1} {:.1} \n\nYaw: {:.} \n\nPitch: {:.} ", pos.x, pos.y, pos.z, model.camera.yaw, model.camera.pitch);
